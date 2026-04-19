@@ -7,18 +7,12 @@
 
 #include "nd_fat.h"
 
-/*
- * Internal synthesized FAT node type.
- */
 enum nd_fat_node_kind
 {
   ND_FAT_NODE_FILE = 1,
   ND_FAT_NODE_DIR = 2
 };
 
-/*
- * Cluster ownership marker used while materializing the volume.
- */
 enum nd_cluster_ref_kind
 {
   ND_CLUSTER_REF_ZERO = 0,
@@ -26,9 +20,6 @@ enum nd_cluster_ref_kind
   ND_CLUSTER_REF_DIR = 2
 };
 
-/*
- * In-memory representation of a host file or directory.
- */
 struct nd_fat_node
 {
   enum nd_fat_node_kind kind;
@@ -49,9 +40,6 @@ struct nd_fat_node
   size_t child_cap;
 };
 
-/*
- * Cluster-to-node mapping entry.
- */
 struct nd_cluster_ref
 {
   enum nd_cluster_ref_kind kind;
@@ -59,9 +47,6 @@ struct nd_cluster_ref
   uint32_t offset;
 };
 
-/*
- * Fully synthesized FAT volume state.
- */
 struct nd_fat_volume
 {
   struct nd_fat_node *root;
@@ -84,9 +69,6 @@ struct nd_fat_volume
   uint8_t media_descriptor;
 };
 
-/*
- * Internal node cleanup helper.
- */
 void nd_fat_node_free (struct nd_fat_node *node);
 
 #endif
