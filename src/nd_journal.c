@@ -3,6 +3,14 @@
 #include <fcntl.h>
 #include <sys/time.h>
 
+/*
+ * nd_journal.c
+ *
+ * Sector journal used for goback and session-scoped image exports.  The
+ * journal stores whole-sector records plus checkpoint markers, then uses
+ * an in-memory LBA map to answer reads quickly.
+ */
+
 #define ND_JOURNAL_REC_HDR_SIZE 16U
 #define ND_JOURNAL_REC_SIZE (ND_JOURNAL_REC_HDR_SIZE + ND_SECTOR_SIZE)
 #define ND_JOURNAL_TAG_MAX 64U
@@ -42,6 +50,10 @@ struct nd_journal
   size_t checkpoint_cap;
 };
 
+/*
+ * The LBA map is an open-addressed hash table from logical sector number
+ * to the newest journal record that overrides that sector.
+ */
 static uint64_t
 nd_load_le64 (const uint8_t *src)
 {
@@ -215,6 +227,11 @@ nd_map_get (const struct nd_lba_map *map, uint32_t lba, uint32_t *rec_num)
   return 0;
 }
 
+/*
+ * Checkpoints are stored as ordinary records with a different type byte.
+ * They are scanned into a compact array so the protocol layer can list
+ * them or jump backwards without rereading the whole journal every time.
+ */
 static void
 nd_journal_clear_checkpoints (struct nd_journal *journal)
 {
@@ -340,6 +357,11 @@ nd_journal_write_record (struct nd_journal *journal, uint32_t rec_num,
   return 0;
 }
 
+/*
+ * Replay is the authoritative recovery path.  The optional .map file is
+ * only a cache; if it is missing or stale, the record stream is scanned
+ * to rebuild the latest LBA map from scratch.
+ */
 static int
 nd_journal_replay (const struct nd_journal *journal, struct nd_lba_map *out_map,
                    char *err, size_t errlen)
@@ -581,6 +603,11 @@ nd_journal_alloc (enum nd_journal_type type)
   return journal;
 }
 
+/*
+ * Opening chooses either a persistent goback journal beside the image or
+ * an ephemeral session-scoped temp file.  Both modes share the same on-
+ * disk format so the read/write path stays identical after open.
+ */
 int
 nd_journal_open_goback (const char *image_path, struct nd_journal **out_journal,
                         char *err, size_t errlen)
@@ -764,6 +791,11 @@ nd_journal_destroy (struct nd_journal *journal)
   free (journal);
 }
 
+/*
+ * The public sector API below is what the image backend uses at runtime.
+ * Reads consult the LBA map, writes either replace or append records,
+ * and checkpoint commands manipulate the same journal stream.
+ */
 enum nd_journal_type
 nd_journal_type (const struct nd_journal *journal)
 {

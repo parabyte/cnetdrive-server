@@ -4,12 +4,25 @@
 
 #include <fcntl.h>
 
+/*
+ * nd_backend_image.c
+ *
+ * Raw disk-image backend.  Plain images are served directly, while
+ * journal-backed images overlay sector changes without rewriting the
+ * base image.  The DOS client still sees one contiguous disk either way.
+ */
+
 struct nd_image_backend
 {
   int fd;
   struct nd_journal *journal;
 };
 
+/*
+ * Read straight from the on-disk image file.  This helper is used both
+ * for non-journal sessions and as the miss path when a journaled read
+ * asks for a sector that has not been overridden yet.
+ */
 static int
 nd_image_read_base (struct nd_image_backend *image, uint32_t start_sector,
                     uint16_t sector_count, uint8_t *buffer, char *err,
@@ -32,6 +45,11 @@ nd_image_read_base (struct nd_image_backend *image, uint32_t start_sector,
   return 0;
 }
 
+/*
+ * A journaled image behaves like a write-through overlay in reverse:
+ * every read checks the journal first and falls back to the base image
+ * sector-by-sector so sparse journal contents still form a full disk.
+ */
 static int
 nd_image_read_sectors (struct nd_backend *backend, uint32_t start_sector,
                        uint16_t sector_count, uint8_t *buffer, char *err,
@@ -64,6 +82,11 @@ nd_image_read_sectors (struct nd_backend *backend, uint32_t start_sector,
   return 0;
 }
 
+/*
+ * Writes either append to the journal or modify the image directly,
+ * depending on how the export was opened.  The backend properties have
+ * already encoded whether the client is allowed to write at all.
+ */
 static int
 nd_image_write_sectors (struct nd_backend *backend, uint32_t start_sector,
                         uint16_t sector_count, const uint8_t *buffer,
@@ -191,6 +214,12 @@ nd_session_scoped_requested (const char *full_path)
   return access (path, F_OK) == 0;
 }
 
+/*
+ * Validate the image, derive the media descriptor DOS expects to see in
+ * the connect reply, and then choose the journaling mode.  Session-
+ * scoped exports use an ephemeral journal, while goback exports reuse a
+ * persistent sidecar journal file beside the image.
+ */
 int
 nd_backend_image_open (const char *full_path, const char *request_name,
                        struct nd_backend **out_backend, char *err,

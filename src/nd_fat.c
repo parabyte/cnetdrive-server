@@ -4,8 +4,22 @@
 #include <dirent.h>
 #include <fcntl.h>
 
+/*
+ * nd_fat.c
+ *
+ * Build a read/write-compatible FAT16 view of a host directory.  The
+ * resulting volume looks like a conventional DOS disk to the remote
+ * client even though its file data is sourced directly from the host
+ * tree rather than from a prebuilt image file.
+ */
+
 static int nd_fat_scan_tree (struct nd_fat_node *node, char *err, size_t errlen);
 
+/*
+ * The short-name helpers translate arbitrary host filenames into stable
+ * DOS 8.3 names.  The folder sync code later depends on these names to
+ * map client-visible directory entries back onto host paths.
+ */
 static int
 nd_compare_nodes (const void *left, const void *right)
 {
@@ -177,6 +191,11 @@ nd_make_short_name (struct nd_fat_node *dir, const char *host_name,
   nd_pack_short_name (out, "OVERFLOW", "ERR");
 }
 
+/*
+ * Each directory is scanned once into a tree of nd_fat_node objects.
+ * That tree becomes the single source of truth for geometry planning,
+ * directory entry generation, and read-time cluster routing.
+ */
 static struct nd_fat_node *
 nd_fat_node_new (enum nd_fat_node_kind kind, struct nd_fat_node *parent,
                  const char *host_name, const char *host_path,
@@ -344,6 +363,12 @@ nd_fat_scan_tree (struct nd_fat_node *node, char *err, size_t errlen)
   return 0;
 }
 
+/*
+ * Geometry is chosen after the tree has been built so the server can
+ * pick a sectors-per-cluster value that fits the whole export into a
+ * legal FAT16 layout.  The chosen geometry then drives FAT and root
+ * directory sizing for the synthesized volume.
+ */
 static uint32_t
 nd_round_up_u32 (uint32_t value, uint32_t quantum)
 {
@@ -463,6 +488,11 @@ nd_plan_geometry (struct nd_fat_volume *volume, char *err, size_t errlen)
   return -1;
 }
 
+/*
+ * Once geometry is fixed, the builder assigns cluster chains to every
+ * file and subdirectory and emits the raw FAT and directory sectors that
+ * a DOS client expects to read from disk.
+ */
 static void
 nd_write_dir_entry (uint8_t *entry, const char name[11], uint8_t attr,
                     uint16_t dos_time, uint16_t dos_date,
@@ -695,6 +725,11 @@ nd_build_boot_sector (struct nd_fat_volume *volume)
   volume->boot_sector[511] = 0xaa;
 }
 
+/*
+ * Read-time sector dispatch is table driven.  Metadata sectors come from
+ * synthesized in-memory buffers, while file clusters are serviced by
+ * reading directly from the backing host file at the mapped offset.
+ */
 static int
 nd_read_file_sector (const char *path, uint32_t offset, uint8_t *buffer,
                      char *err, size_t errlen)
@@ -722,6 +757,11 @@ nd_read_file_sector (const char *path, uint32_t offset, uint8_t *buffer,
   return 0;
 }
 
+/*
+ * Open performs the full directory-to-volume pipeline once: scan the
+ * tree, choose geometry, allocate clusters, build metadata, and cache
+ * the boot sector.  Later reads can then answer sector requests cheaply.
+ */
 int
 nd_fat_volume_open (const char *host_dir, const char *label_hint,
                     struct nd_fat_volume **out_volume, char *err,

@@ -6,6 +6,14 @@
 #include <fcntl.h>
 #include <utime.h>
 
+/*
+ * nd_fat_sync.c
+ *
+ * Reverse path for folder exports.  After the client writes sectors into
+ * the temporary FAT image, this file parses the mutated FAT structures
+ * and reconciles the host directory tree immediately.
+ */
+
 struct nd_sync_entry
 {
   enum nd_fat_node_kind kind;
@@ -73,6 +81,11 @@ nd_make_temp_path (const char *host_path, char *temp_path, size_t temp_path_len)
     ? 0 : -1;
 }
 
+/*
+ * The materialized image is the protocol-visible disk.  This helper lays
+ * down the initial synthesized FAT volume sector-by-sector so later
+ * writes can be applied against a normal temporary file.
+ */
 int
 nd_fat_volume_materialize (const struct nd_fat_volume *volume, int fd,
                            char *err, size_t errlen)
@@ -266,6 +279,11 @@ nd_sync_build_map_node (enum nd_fat_node_kind kind, struct nd_fat_node *parent,
   return node;
 }
 
+/*
+ * Mapping rebuild preserves as much of the original host naming as it
+ * can.  Existing DOS names are matched back to the initial tree so a
+ * rewrite does not gratuitously rename files on the Unix side.
+ */
 static struct nd_fat_node *
 nd_sync_build_mapping_tree (const struct nd_sync_entry *current_dir,
                             const struct nd_fat_node *previous_dir,
@@ -411,6 +429,11 @@ nd_apply_timestamp (const char *path, uint16_t dos_date, uint16_t dos_time)
   return utime (path, &utb);
 }
 
+/*
+ * File write-back copies the cluster chain out of the temporary FAT
+ * image into a host temp file, preserves the prior mode when possible,
+ * and then atomically renames the finished file into place.
+ */
 static int
 nd_sync_copy_file (const struct nd_fat_volume *volume, int fd,
                    const uint8_t *fat, const struct nd_sync_entry *entry,
@@ -583,6 +606,11 @@ nd_sync_parse_entry (const uint8_t *raw, struct nd_sync_entry **out_entry)
   return 2;
 }
 
+/*
+ * Parsing walks the on-disk FAT structures rather than trusting the
+ * cached synthesis tree.  That is what lets live writes create, delete,
+ * or resize entries and have those changes reflected on the host.
+ */
 static int
 nd_sync_parse_directory (const struct nd_fat_volume *volume, int fd,
                          const uint8_t *fat, uint16_t start_cluster,
@@ -773,6 +801,11 @@ nd_sync_read_tree (const struct nd_fat_volume *volume, int fd,
   return 0;
 }
 
+/*
+ * Reconciliation applies the parsed directory tree onto the host tree.
+ * Existing names are reused when possible, type conflicts are replaced,
+ * and host paths missing from the current FAT view are removed.
+ */
 static int
 nd_sync_reconcile_dir (const struct nd_fat_volume *volume, int fd,
                        const uint8_t *fat, const struct nd_fat_node *initial_dir,
@@ -878,6 +911,12 @@ nd_sync_reconcile_dir (const struct nd_fat_volume *volume, int fd,
   return 0;
 }
 
+/*
+ * Top-level sync is called after each successful folder write.  It reads
+ * the current FAT, parses the directory tree back out of the temp image,
+ * updates the host filesystem, and then swaps in a refreshed mapping
+ * tree for the next write-back cycle.
+ */
 int
 nd_fat_volume_sync_to_host (struct nd_fat_volume *volume, int fd,
                             char *err, size_t errlen)

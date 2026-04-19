@@ -1,5 +1,13 @@
 #include "nd_server.h"
 
+/*
+ * main.c
+ *
+ * Command-line front end for the standalone server.  The real work
+ * lives in nd_server.c; this file only translates GNU-style command
+ * switches into a nd_server_config and then hands control off.
+ */
+
 static void
 nd_usage (const char *progname)
 {
@@ -29,6 +37,10 @@ nd_parse_uint (const char *text, unsigned int *value)
   return 0;
 }
 
+/*
+ * Parse the small server option set locally so the runtime core can stay
+ * focused on protocol handling and export management.
+ */
 int
 main (int argc, char **argv)
 {

@@ -2,6 +2,14 @@
 
 #include <ctype.h>
 
+/*
+ * nd_common.c
+ *
+ * Shared support routines used throughout the server.  These helpers
+ * hide host-specific details such as whole-request I/O, flush handling,
+ * safe path joining, and DOS timestamp conversion.
+ */
+
 static int
 nd_open_for_fsync (const char *path)
 {
@@ -46,6 +54,11 @@ nd_strdup (const char *input)
   return copy;
 }
 
+/*
+ * The sector code expects complete transfers.  These wrappers loop until
+ * the full buffer is satisfied so callers do not need to hand-roll short
+ * read and short write handling around every disk operation.
+ */
 ssize_t
 nd_pread_full (int fd, void *buffer, size_t count, off_t offset)
 {
@@ -98,6 +111,11 @@ nd_pwrite_full (int fd, const void *buffer, size_t count, off_t offset)
   return (ssize_t) done;
 }
 
+/*
+ * Host updates often need more than one flush point.  Files get fsync'd
+ * after data writes, then the containing directory can be synced after
+ * a rename or unlink to make the metadata durable as well.
+ */
 int
 nd_fsync_fd (int fd, char *err, size_t errlen)
 {
@@ -210,6 +228,11 @@ nd_make_temp_template (char *out, size_t outlen, const char *stem)
                    stem) < (int) outlen ? 0 : -1;
 }
 
+/*
+ * Export names are treated as relative paths under the configured root.
+ * Rejecting separators and ".." here keeps protocol parsing and backend
+ * dispatch from ever walking outside that root.
+ */
 static int
 nd_is_safe_path_component (const char *text)
 {
@@ -267,6 +290,11 @@ nd_uppercase_ascii (char *text)
     text[i] = (char) toupper ((unsigned char) text[i]);
 }
 
+/*
+ * FAT timestamps use a DOS-specific epoch and a coarse on-disk layout.
+ * Both the synthetic FAT builder and the write-back path use the same
+ * conversion helpers so timestamps stay consistent in both directions.
+ */
 uint16_t
 nd_dos_time_from_unix (time_t when)
 {

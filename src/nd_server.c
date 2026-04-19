@@ -5,6 +5,14 @@
 #include <sys/select.h>
 #include <sys/socket.h>
 
+/*
+ * nd_server.c
+ *
+ * UDP server core.  This file owns session lifetime, request sequencing,
+ * stock MS-DOS compatibility quirks, backend dispatch, and the main I/O
+ * loop that keeps the service running.
+ */
+
 struct nd_session
 {
   int active;
@@ -36,6 +44,11 @@ static const uint8_t nd_version_max_command[] =
 
 static volatile sig_atomic_t nd_stop_requested;
 
+/*
+ * Session helpers below keep protocol processing deterministic.  A
+ * session is bound to one UDP peer, tracks the last command for retry
+ * detection, and remembers the opened backend for later I/O commands.
+ */
 static void
 nd_signal_handler (int sig)
 {
@@ -149,6 +162,11 @@ nd_close_session (struct nd_session *session, const char *reason)
   memset (session, 0, sizeof (*session));
 }
 
+/*
+ * DOS clients resend the same packet when they think one reply was lost.
+ * The server accepts an exact retry of the current sequence number, but
+ * rejects gaps or rewinds so one session cannot drift out of sync.
+ */
 static int
 nd_update_sequence (struct nd_session *session, const struct nd_command *cmd,
                     int *retry, char *err, size_t errlen)
@@ -203,6 +221,12 @@ nd_export_conflicts (const struct nd_server_state *state,
   return 0;
 }
 
+/*
+ * Connect is the only command that creates server state.  Once the
+ * export has been normalized and opened, the response returns enough DOS
+ * disk metadata for the client to treat the remote export like a local
+ * block device.
+ */
 static void
 nd_handle_connect (struct nd_server_state *state, const struct sockaddr_in *peer,
                    const struct nd_command *cmd, const uint8_t *payload,
@@ -315,6 +339,11 @@ nd_handle_connect (struct nd_server_state *state, const struct sockaddr_in *peer
            (flags & ND_BACKEND_CONNECT_FLAG_READONLY) ? "yes" : "no");
 }
 
+/*
+ * Read, write, and checkpoint handlers all follow the same pattern:
+ * validate the sequence, reject out-of-range media access, call the
+ * backend, then echo a reply that matches the incoming command version.
+ */
 static void
 nd_send_error_for_command (struct nd_server_state *state,
                            const struct sockaddr_in *peer,
@@ -676,6 +705,11 @@ nd_handle_list_checkpoints (struct nd_server_state *state,
   (void) retry;
 }
 
+/*
+ * Packet dispatch enforces protocol version limits, session ownership,
+ * and command availability before any backend call is attempted.  That
+ * preserves mixed v1/v2 DOS behavior while still rejecting stray peers.
+ */
 static void
 nd_process_packet (struct nd_server_state *state, const struct sockaddr_in *peer,
                    const uint8_t *packet, size_t packet_len)
@@ -796,6 +830,11 @@ nd_reap_timeouts (struct nd_server_state *state)
     }
 }
 
+/*
+ * The main loop is intentionally small: wait on the UDP socket, process
+ * one datagram at a time, and reap idle sessions once per select tick.
+ * That keeps the service portable across the target Unix-like systems.
+ */
 int
 nd_server_run (const struct nd_server_config *config)
 {

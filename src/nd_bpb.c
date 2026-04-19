@@ -1,5 +1,13 @@
 #include "nd_bpb.h"
 
+/*
+ * nd_bpb.c
+ *
+ * Minimal BIOS Parameter Block parsing for the DOS formats the server
+ * understands.  The checks here intentionally reject partial or strange
+ * layouts before the rest of the stack treats the media as trustworthy.
+ */
+
 int
 nd_bpb_parse (const uint8_t sector[ND_SECTOR_SIZE], struct nd_bpb *bpb,
               char *err, size_t errlen)

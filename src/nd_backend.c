@@ -1,5 +1,19 @@
 #include "nd_backend.h"
 
+/*
+ * nd_backend.c
+ *
+ * Thin dispatch layer that picks the right export backend and funnels
+ * all later operations through one uniform vtable.  The server only has
+ * to understand "backend" semantics after this point.
+ */
+
+/*
+ * Resolve a client-supplied export name inside the configured root and
+ * then hand off to either the raw image backend or the synthesized
+ * folder backend.  Device and inode identity are recorded so the server
+ * can detect aliasing when it enforces exclusive write opens.
+ */
 int
 nd_backend_open (const char *root_dir, const char *request_name,
                  struct nd_backend **out_backend, char *err, size_t errlen)
@@ -57,6 +71,11 @@ nd_backend_open (const char *root_dir, const char *request_name,
   return -1;
 }
 
+/*
+ * The remaining entry points are simple guard rails around backend ops.
+ * They centralize NULL checks and feature probing so the protocol layer
+ * does not repeat that boilerplate for every command.
+ */
 int
 nd_backend_read (struct nd_backend *backend, uint32_t start_sector,
                  uint16_t sector_count, uint8_t *buffer, char *err,

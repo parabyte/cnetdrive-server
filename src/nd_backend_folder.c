@@ -3,6 +3,15 @@
 
 #include <fcntl.h>
 
+/*
+ * nd_backend_folder.c
+ *
+ * Folder exports are presented to the DOS client as a temporary FAT
+ * image.  Reads and writes operate on that materialized image, while the
+ * FAT sync layer translates successful writes back to the host directory
+ * immediately.
+ */
+
 struct nd_folder_backend
 {
   struct nd_fat_volume *volume;
@@ -34,6 +43,12 @@ nd_folder_read_sectors (struct nd_backend *backend, uint32_t start_sector,
   return 0;
 }
 
+/*
+ * The writable folder path is intentionally synchronous.  The sector
+ * write lands in the temporary image first, then the image is flushed,
+ * then the host tree is reconciled before success is reported back to
+ * the client.
+ */
 static int
 nd_folder_write_sectors (struct nd_backend *backend, uint32_t start_sector,
                          uint16_t sector_count, const uint8_t *buffer,
@@ -124,6 +139,12 @@ static const struct nd_backend_ops nd_folder_ops =
   nd_folder_destroy
 };
 
+/*
+ * Opening a folder backend means taking a snapshot of the current host
+ * tree into a synthetic FAT16 volume and materializing that volume into
+ * a temporary file.  That file becomes the protocol-visible "disk"
+ * while the volume metadata keeps enough state to map changes back.
+ */
 int
 nd_backend_folder_open (const char *full_path, const char *request_name,
                         struct nd_backend **out_backend, char *err,

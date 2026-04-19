@@ -2,6 +2,19 @@
 
 #include <ctype.h>
 
+/*
+ * nd_protocol.c
+ *
+ * Packet marshaling for the NetDrive wire format.  This file knows how
+ * to decode the fixed command header, parse the version-specific connect
+ * payloads, and normalize export names before they reach the filesystem.
+ */
+
+/*
+ * Every request starts with the same 14-byte command header.  The server
+ * uses this decoder first so later handlers can work with a structured
+ * command record instead of raw byte offsets.
+ */
 int
 nd_parse_command (const uint8_t *packet, size_t packet_len,
                   struct nd_command *cmd, const uint8_t **payload,
@@ -93,6 +106,11 @@ nd_copy_cstring_field (char *dst, size_t dstlen, const uint8_t *src,
   return -1;
 }
 
+/*
+ * Connect packets are the only version-dependent payloads.  Version 1
+ * carries just a MAC and export name, while version 2 adds the client
+ * type, negotiated block size, and an OS string.
+ */
 int
 nd_parse_connect_info (const struct nd_command *cmd, const uint8_t *payload,
                        size_t payload_len, struct nd_connect_info *info,
@@ -156,6 +174,11 @@ nd_parse_connect_info (const struct nd_command *cmd, const uint8_t *payload,
   return -1;
 }
 
+/*
+ * Normalize the requested export into the portable internal form used by
+ * the backend layer.  The rules are strict on purpose: DOS clients often
+ * send path-like names, but they still must stay inside the export root.
+ */
 int
 nd_normalize_export_name (const char *raw, char *normalized,
                           size_t normalized_len, char *err, size_t errlen)
