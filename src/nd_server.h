@@ -10,6 +10,9 @@
 
 #include <netinet/in.h>
 
+/*
+ * Top-level server configuration.
+ */
 struct nd_server_config
 {
   char export_root[ND_PATH_MAX];
@@ -18,6 +21,9 @@ struct nd_server_config
   unsigned int session_timeout_seconds;
 };
 
+/*
+ * Run the UDP NetDrive server until shutdown.
+ */
 int nd_server_run (const struct nd_server_config *config);
 
 #endif

@@ -29,8 +29,14 @@
 #define ND_MAX_SECTORS_PER_OP 2U
 #define ND_DEFAULT_MAX_SESSIONS 16U
 
+/*
+ * Small array-length helper.
+ */
 #define ND_ARRAY_LEN(a) (sizeof (a) / sizeof ((a)[0]))
 
+/*
+ * Shared utility routines.
+ */
 void nd_set_error (char *err, size_t errlen, const char *fmt, ...);
 char *nd_strdup (const char *input);
 ssize_t nd_pread_full (int fd, void *buffer, size_t count, off_t offset);
@@ -45,6 +51,9 @@ void nd_uppercase_ascii (char *text);
 uint16_t nd_dos_time_from_unix (time_t when);
 uint16_t nd_dos_date_from_unix (time_t when);
 
+/*
+ * Little-endian load and store helpers.
+ */
 static inline uint16_t
 nd_load_le16 (const uint8_t *src)
 {

@@ -7,6 +7,9 @@
 
 #include "nd_common.h"
 
+/*
+ * Decoded DOS BIOS parameter block fields needed by the server.
+ */
 struct nd_bpb
 {
   uint16_t bytes_per_sector;
@@ -23,6 +26,9 @@ struct nd_bpb
   uint32_t sectors_32;
 };
 
+/*
+ * BPB parsing helpers.
+ */
 int nd_bpb_parse (const uint8_t sector[ND_SECTOR_SIZE], struct nd_bpb *bpb,
                   char *err, size_t errlen);
 uint32_t nd_bpb_total_sectors (const struct nd_bpb *bpb);

@@ -7,6 +7,9 @@
 
 #include "nd_common.h"
 
+/*
+ * Journal mode identifier.
+ */
 enum nd_journal_type
 {
   ND_JOURNAL_NONE = 0,
@@ -16,6 +19,9 @@ enum nd_journal_type
 
 struct nd_journal;
 
+/*
+ * Journal lifecycle helpers.
+ */
 int nd_journal_open_goback (const char *image_path, struct nd_journal **out_journal,
                             char *err, size_t errlen);
 int nd_journal_open_session_scoped (const char *image_path,
@@ -24,6 +30,9 @@ int nd_journal_open_session_scoped (const char *image_path,
 int nd_journal_close (struct nd_journal *journal, char *err, size_t errlen);
 void nd_journal_destroy (struct nd_journal *journal);
 
+/*
+ * Sector redirection and checkpoint entry points.
+ */
 enum nd_journal_type nd_journal_type (const struct nd_journal *journal);
 int nd_journal_has_lba (const struct nd_journal *journal, uint32_t lba);
 int nd_journal_read_lba (const struct nd_journal *journal, uint32_t lba,

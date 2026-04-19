@@ -7,8 +7,14 @@
 
 #include "nd_common.h"
 
+/*
+ * Opaque FAT volume type used by the folder export backend.
+ */
 struct nd_fat_volume;
 
+/*
+ * FAT volume lifecycle and I/O entry points.
+ */
 int nd_fat_volume_open (const char *host_dir, const char *label_hint,
                         struct nd_fat_volume **out_volume, char *err,
                         size_t errlen);

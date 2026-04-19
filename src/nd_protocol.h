@@ -7,6 +7,9 @@
 
 #include "nd_common.h"
 
+/*
+ * Wire-level NetDrive operation code.
+ */
 enum nd_operation
 {
   ND_OP_CONNECT = 1,
@@ -19,10 +22,16 @@ enum nd_operation
   ND_OP_LIST_CHECKPOINTS = 8
 };
 
+/*
+ * Supported protocol version range and fixed header length.
+ */
 #define ND_PROTOCOL_MIN_VERSION 1U
 #define ND_PROTOCOL_MAX_VERSION 2U
 #define ND_COMMAND_HEADER_LEN 14U
 
+/*
+ * Command header as decoded from the wire.
+ */
 struct nd_command
 {
   uint16_t version;
@@ -34,6 +43,9 @@ struct nd_command
   uint16_t sector_count;
 };
 
+/*
+ * Decoded connect payload fields.
+ */
 struct nd_connect_info
 {
   uint8_t mac[6];
@@ -43,6 +55,9 @@ struct nd_connect_info
   char export_name[ND_PATH_MAX];
 };
 
+/*
+ * Protocol packet helpers.
+ */
 int nd_parse_command (const uint8_t *packet, size_t packet_len,
                       struct nd_command *cmd, const uint8_t **payload,
                       size_t *payload_len, char *err, size_t errlen);

@@ -7,6 +7,9 @@
 
 #include "nd_common.h"
 
+/*
+ * Backend type identifier.
+ */
 enum nd_backend_kind
 {
   ND_BACKEND_IMAGE = 1,
@@ -15,6 +18,9 @@ enum nd_backend_kind
 
 struct nd_backend;
 
+/*
+ * Per-backend operation vector.
+ */
 struct nd_backend_ops
 {
   int (*read_sectors) (struct nd_backend *backend, uint32_t start_sector,
@@ -34,6 +40,9 @@ struct nd_backend_ops
   void (*destroy) (struct nd_backend *backend);
 };
 
+/*
+ * Shared backend metadata used by the server core.
+ */
 struct nd_backend
 {
   enum nd_backend_kind kind;
@@ -50,12 +59,21 @@ struct nd_backend
   void *impl;
 };
 
+/*
+ * Flags returned to the remote client during connect.
+ */
 #define ND_BACKEND_CONNECT_FLAG_READONLY 0x0001u
 #define ND_BACKEND_CONNECT_FLAG_SESSION_SCOPED 0x0002u
 
+/*
+ * Local server-side backend properties.
+ */
 #define ND_BACKEND_PROPERTY_WRITE_ALLOWED 0x0001u
 #define ND_BACKEND_PROPERTY_EXCLUSIVE_OPEN 0x0002u
 
+/*
+ * Generic backend entry points.
+ */
 int nd_backend_open (const char *root_dir, const char *request_name,
                      struct nd_backend **out_backend, char *err,
                      size_t errlen);
@@ -81,6 +99,9 @@ int nd_backend_requires_exclusive_open (const struct nd_backend *backend);
 uint16_t nd_backend_connect_flags (const struct nd_backend *backend);
 const char *nd_backend_kind_string (const struct nd_backend *backend);
 
+/*
+ * Concrete backend open helpers.
+ */
 int nd_backend_image_open (const char *full_path, const char *request_name,
                            struct nd_backend **out_backend, char *err,
                            size_t errlen);
