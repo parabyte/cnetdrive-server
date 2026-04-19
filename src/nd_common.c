@@ -1,3 +1,7 @@
+/*
+ * nd_common.c - shared low-level utility routines.
+ */
+
 #include "nd_common.h"
 
 #include <ctype.h>

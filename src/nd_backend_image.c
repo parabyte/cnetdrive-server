@@ -1,3 +1,7 @@
+/*
+ * nd_backend_image.c - raw image backend and journal integration.
+ */
+
 #include "nd_backend.h"
 #include "nd_bpb.h"
 #include "nd_journal.h"

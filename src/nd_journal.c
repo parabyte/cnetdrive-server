@@ -1,3 +1,7 @@
+/*
+ * nd_journal.c - checkpoint journal storage and replay support.
+ */
+
 #include "nd_journal.h"
 
 #include <fcntl.h>

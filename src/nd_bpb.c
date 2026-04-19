@@ -1,3 +1,7 @@
+/*
+ * nd_bpb.c - BIOS parameter block parsing helpers.
+ */
+
 #include "nd_bpb.h"
 
 int

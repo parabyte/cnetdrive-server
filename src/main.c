@@ -1,3 +1,7 @@
+/*
+ * main.c - command line entry point for the NetDrive server.
+ */
+
 #include "nd_server.h"
 
 static void

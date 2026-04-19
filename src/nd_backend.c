@@ -1,3 +1,7 @@
+/*
+ * nd_backend.c - backend dispatch and export open policy handling.
+ */
+
 #include "nd_backend.h"
 
 int

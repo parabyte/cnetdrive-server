@@ -1,3 +1,7 @@
+/*
+ * nd_common.h - shared constants, helpers, and small inline utilities.
+ */
+
 #ifndef ND_COMMON_H
 #define ND_COMMON_H
 

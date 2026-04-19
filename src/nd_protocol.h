@@ -1,3 +1,7 @@
+/*
+ * nd_protocol.h - protocol constants, packet structures, and helpers.
+ */
+
 #ifndef ND_PROTOCOL_H
 #define ND_PROTOCOL_H
 

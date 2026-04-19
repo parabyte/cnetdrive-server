@@ -1,3 +1,7 @@
+/*
+ * nd_fat_priv.h - internal FAT volume structures shared by the FAT modules.
+ */
+
 #ifndef ND_FAT_PRIV_H
 #define ND_FAT_PRIV_H
 

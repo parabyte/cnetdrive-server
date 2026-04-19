@@ -1,3 +1,7 @@
+/*
+ * nd_server.c - UDP session management and command dispatch.
+ */
+
 #include "nd_server.h"
 
 #include <arpa/inet.h>

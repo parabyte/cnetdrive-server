@@ -1,3 +1,7 @@
+/*
+ * nd_server.h - server configuration and top-level run entry point.
+ */
+
 #ifndef ND_SERVER_H
 #define ND_SERVER_H
 
