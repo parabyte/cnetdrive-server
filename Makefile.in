@@ -1,21 +1,19 @@
-PREFIX ?= /usr/local
-BINDIR ?= $(PREFIX)/bin
-CC ?= cc
-CPPFLAGS ?=
-CFLAGS ?= -O2 -g
-LDFLAGS ?=
-LDLIBS ?=
+prefix = @prefix@
+bindir = @bindir@
+srcdir = @srcdir@
+
+CC = @CC@
+DEFS = @DEFS@
+CPPFLAGS = @CPPFLAGS@
+CFLAGS = @CFLAGS@
+LDFLAGS = @LDFLAGS@
+LDLIBS = @LDLIBS@
 
 WARN_CFLAGS = -Wall -Wextra -Wformat=2 -Wshadow -Wpointer-arith \
   -Wstrict-prototypes -Wmissing-prototypes -Wwrite-strings
 
-BASE_CPPFLAGS = -D_POSIX_C_SOURCE=200809L -I$(CURDIR)/src
+BASE_CPPFLAGS = $(DEFS) -I$(srcdir)/src
 BASE_CFLAGS = -std=c99 $(WARN_CFLAGS)
-
-ifeq ($(SANITIZE),1)
-BASE_CFLAGS += -fsanitize=address,undefined -fno-omit-frame-pointer
-LDFLAGS += -fsanitize=address,undefined
-endif
 
 SERVER_SRCS = \
   src/main.c \
@@ -32,7 +30,7 @@ SERVER_SRCS = \
 
 SERVER_OBJS = $(SERVER_SRCS:.c=.o)
 
-.PHONY: all clean elks-check install
+.PHONY: all clean distclean elks-check install uninstall
 
 all: cnetdrive
 
@@ -44,11 +42,17 @@ elks-check:
 	$(MAKE) CPPFLAGS="$(CPPFLAGS) -DELKS" cnetdrive
 
 install: cnetdrive
-	install -d $(DESTDIR)$(BINDIR)
-	install -m 0755 cnetdrive $(DESTDIR)$(BINDIR)/cnetdrive
+	install -d $(DESTDIR)$(bindir)
+	install -m 0755 cnetdrive $(DESTDIR)$(bindir)/cnetdrive
+
+uninstall:
+	rm -f $(DESTDIR)$(bindir)/cnetdrive
 
 clean:
 	rm -f cnetdrive $(SERVER_OBJS)
+
+distclean: clean
+	rm -f Makefile config.log config.status
 
 %.o: %.c
 	$(CC) $(CPPFLAGS) $(BASE_CPPFLAGS) $(BASE_CFLAGS) $(CFLAGS) -c -o $@ $<

@@ -1,0 +1,233 @@
+#!/bin/sh
+
+# configure - minimal GNU-style configure script for cnetdrive-server
+
+set -eu
+
+prefix=/usr/local
+bindir='${prefix}/bin'
+srcdir=.
+host=
+
+CC=${CC-}
+CPPFLAGS=${CPPFLAGS-}
+CFLAGS=${CFLAGS--O2 -g}
+LDFLAGS=${LDFLAGS-}
+LDLIBS=${LDLIBS-}
+DEFS='-D_POSIX_C_SOURCE=200809L'
+
+configure_args=
+
+append_arg() {
+  if [ -z "${configure_args}" ]; then
+    configure_args=$1
+  else
+    configure_args="${configure_args} $1"
+  fi
+}
+
+quote_arg() {
+  printf "'%s'" "$(printf '%s' "$1" | sed "s/'/'\\\\''/g")"
+}
+
+for opt in "$@"; do
+  append_arg "$(quote_arg "$opt")"
+  case "$opt" in
+    --help|-h)
+      cat <<'EOF'
+Usage: ./configure [OPTIONS] [VARIABLE=VALUE]
+
+Options:
+  --prefix=PREFIX     install architecture-independent files in PREFIX
+  --bindir=DIR        install executables in DIR [PREFIX/bin]
+  --host=HOST         record the target host triplet
+  --srcdir=DIR        source directory [.]
+  --help              display this help and exit
+
+Variables:
+  CC, CPPFLAGS, CFLAGS, LDFLAGS, LDLIBS
+
+Examples:
+  ./configure
+  ./configure --prefix=/usr CC=clang
+  ./configure CPPFLAGS='-I/opt/include' LDFLAGS='-L/opt/lib'
+EOF
+      exit 0
+      ;;
+    --prefix=*)
+      prefix=${opt#*=}
+      ;;
+    --bindir=*)
+      bindir=${opt#*=}
+      ;;
+    --host=*)
+      host=${opt#*=}
+      ;;
+    --srcdir=*)
+      srcdir=${opt#*=}
+      ;;
+    CC=*)
+      CC=${opt#*=}
+      ;;
+    CPPFLAGS=*)
+      CPPFLAGS=${opt#*=}
+      ;;
+    CFLAGS=*)
+      CFLAGS=${opt#*=}
+      ;;
+    LDFLAGS=*)
+      LDFLAGS=${opt#*=}
+      ;;
+    LDLIBS=*)
+      LDLIBS=${opt#*=}
+      ;;
+    *)
+      echo "configure: error: unknown option: $opt" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ -z "$CC" ]; then
+  for candidate in cc gcc clang; do
+    if command -v "$candidate" >/dev/null 2>&1; then
+      CC=$candidate
+      break
+    fi
+  done
+fi
+
+if [ -z "$CC" ]; then
+  echo "configure: error: no suitable C compiler found" >&2
+  exit 1
+fi
+
+rm -f config.log config.status Makefile
+exec 5>config.log
+
+log() {
+  printf '%s\n' "$*" >&5
+}
+
+say() {
+  printf '%s\n' "$*"
+  log "$*"
+}
+
+escape_sed() {
+  printf '%s' "$1" | sed 's/[|&\\]/\\&/g'
+}
+
+tmpdir=./conftest-$$
+trap 'rm -rf "$tmpdir"' EXIT HUP INT TERM
+mkdir "$tmpdir"
+
+cat >"$tmpdir/conftest.c" <<'EOF'
+#include <arpa/inet.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
+#include <utime.h>
+
+int
+main (void)
+{
+  struct sockaddr_in sa;
+  socklen_t salen;
+  int fd;
+  char addrbuf[16];
+
+  memset (&sa, 0, sizeof (sa));
+  salen = (socklen_t) sizeof (sa);
+  fd = socket (AF_INET, SOCK_DGRAM, 0);
+  if (fd >= 0)
+    {
+      getsockname (fd, (struct sockaddr *) &sa, &salen);
+      close (fd);
+    }
+  inet_ntop (AF_INET, &sa.sin_addr, addrbuf, sizeof (addrbuf));
+  fsync (STDOUT_FILENO);
+  localtime_r ((const time_t[]){0}, &(struct tm){0});
+  return 0;
+}
+EOF
+
+try_link() {
+  libs=$1
+  cmd="$CC $CPPFLAGS $DEFS -std=c99 $CFLAGS $LDFLAGS -o $tmpdir/conftest $tmpdir/conftest.c $libs"
+  log "\$ $cmd"
+  if sh -c "$cmd" >>config.log 2>&1; then
+    return 0
+  fi
+  return 1
+}
+
+say "checking for C compiler... $CC"
+
+if ! try_link "$LDLIBS"; then
+  if try_link "$LDLIBS -lsocket"; then
+    LDLIBS="$LDLIBS -lsocket"
+  elif try_link "$LDLIBS -lsocket -lnsl"; then
+    LDLIBS="$LDLIBS -lsocket -lnsl"
+  else
+    echo "configure: error: compiler test failed; see config.log" >&2
+    exit 1
+  fi
+fi
+
+log "selected compiler: $CC"
+log "selected cppflags: $CPPFLAGS"
+log "selected cflags: $CFLAGS"
+log "selected ldflags: $LDFLAGS"
+log "selected ldlibs: $LDLIBS"
+if [ -n "$host" ]; then
+  log "selected host: $host"
+fi
+
+sed \
+  -e "s|@prefix@|$(escape_sed "$prefix")|g" \
+  -e "s|@bindir@|$(escape_sed "$bindir")|g" \
+  -e "s|@srcdir@|$(escape_sed "$srcdir")|g" \
+  -e "s|@CC@|$(escape_sed "$CC")|g" \
+  -e "s|@DEFS@|$(escape_sed "$DEFS")|g" \
+  -e "s|@CPPFLAGS@|$(escape_sed "$CPPFLAGS")|g" \
+  -e "s|@CFLAGS@|$(escape_sed "$CFLAGS")|g" \
+  -e "s|@LDFLAGS@|$(escape_sed "$LDFLAGS")|g" \
+  -e "s|@LDLIBS@|$(escape_sed "$LDLIBS")|g" \
+  "$srcdir/Makefile.in" > Makefile
+
+cat > config.status <<EOF
+#!/bin/sh
+exec ./configure $configure_args "\$@"
+EOF
+chmod +x config.status
+
+cat <<EOF
+configure: creating ./Makefile
+configure: creating ./config.status
+
+Configuration summary:
+  prefix:    $prefix
+  bindir:    $bindir
+  cc:        $CC
+  cppflags:  $CPPFLAGS
+  cflags:    $CFLAGS
+  ldflags:   $LDFLAGS
+  ldlibs:    $LDLIBS
+EOF
+
+if [ -n "$host" ]; then
+  printf '  host:      %s\n' "$host"
+fi
+
+printf '\nNow run: make\n'
