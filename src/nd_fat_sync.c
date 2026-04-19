@@ -1,7 +1,3 @@
-/*
- * nd_fat_sync.c - write-back and reconciliation for folder-backed exports.
- */
-
 #include "nd_fat_priv.h"
 
 #include "nd_bpb.h"

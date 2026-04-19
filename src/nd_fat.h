@@ -1,7 +1,3 @@
-/*
- * nd_fat.h - public FAT volume entry points for folder exports.
- */
-
 #ifndef ND_FAT_H
 #define ND_FAT_H
 

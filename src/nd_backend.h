@@ -1,7 +1,3 @@
-/*
- * nd_backend.h - backend interfaces and shared export metadata.
- */
-
 #ifndef ND_BACKEND_H
 #define ND_BACKEND_H
 

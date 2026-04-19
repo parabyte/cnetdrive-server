@@ -1,7 +1,3 @@
-/*
- * nd_protocol.c - packet parsing and protocol payload helpers.
- */
-
 #include "nd_protocol.h"
 
 #include <ctype.h>

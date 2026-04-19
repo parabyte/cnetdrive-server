@@ -1,7 +1,3 @@
-/*
- * nd_backend_folder.c - folder export backend and live write-back glue.
- */
-
 #include "nd_backend.h"
 #include "nd_fat.h"
 

@@ -1,7 +1,3 @@
-/*
- * nd_bpb.h - BIOS parameter block declarations.
- */
-
 #ifndef ND_BPB_H
 #define ND_BPB_H
 

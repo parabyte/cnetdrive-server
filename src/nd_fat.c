@@ -1,7 +1,3 @@
-/*
- * nd_fat.c - FAT volume synthesis for exported host directories.
- */
-
 #include "nd_fat_priv.h"
 
 #include <ctype.h>

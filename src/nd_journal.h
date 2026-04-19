@@ -1,7 +1,3 @@
-/*
- * nd_journal.h - journal and checkpoint interfaces.
- */
-
 #ifndef ND_JOURNAL_H
 #define ND_JOURNAL_H
 
