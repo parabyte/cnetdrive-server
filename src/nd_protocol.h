@@ -16,8 +16,9 @@ enum nd_operation
 };
 
 #define ND_PROTOCOL_MIN_VERSION 1U
-#define ND_PROTOCOL_MAX_VERSION 2U
-#define ND_COMMAND_HEADER_LEN 14U
+#define ND_PROTOCOL_MAX_VERSION 3U
+#define ND_COMMAND_HEADER_LEN_V1 14U
+#define ND_COMMAND_HEADER_LEN_V3 16U
 
 struct nd_command
 {
@@ -28,6 +29,7 @@ struct nd_command
   uint8_t result;
   uint32_t start_sector;
   uint16_t sector_count;
+  uint16_t header_extra;
 };
 
 struct nd_connect_info

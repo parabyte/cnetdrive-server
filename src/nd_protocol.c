@@ -20,28 +20,40 @@ nd_parse_command (const uint8_t *packet, size_t packet_len,
                   struct nd_command *cmd, const uint8_t **payload,
                   size_t *payload_len, char *err, size_t errlen)
 {
+  size_t header_len;
+
   if (packet == NULL || cmd == NULL || payload == NULL || payload_len == NULL)
     {
       nd_set_error (err, errlen, "internal protocol error");
       return -1;
     }
 
-  if (packet_len < ND_COMMAND_HEADER_LEN)
+  if (packet_len < ND_COMMAND_HEADER_LEN_V1)
     {
       nd_set_error (err, errlen, "packet too short");
       return -1;
     }
 
   cmd->version = nd_load_le16 (packet + 0);
+  header_len = (cmd->version >= 3) ? ND_COMMAND_HEADER_LEN_V3
+                                   : ND_COMMAND_HEADER_LEN_V1;
+  if (packet_len < header_len)
+    {
+      nd_set_error (err, errlen, "packet too short");
+      return -1;
+    }
+
   cmd->session = nd_load_le16 (packet + 2);
   cmd->sequence = nd_load_le16 (packet + 4);
   cmd->operation = packet[6];
   cmd->result = packet[7];
   cmd->start_sector = nd_load_le32 (packet + 8);
   cmd->sector_count = nd_load_le16 (packet + 12);
+  cmd->header_extra = (header_len >= ND_COMMAND_HEADER_LEN_V3)
+    ? nd_load_le16 (packet + 14) : 0;
 
-  *payload = packet + ND_COMMAND_HEADER_LEN;
-  *payload_len = packet_len - ND_COMMAND_HEADER_LEN;
+  *payload = packet + header_len;
+  *payload_len = packet_len - header_len;
   return 0;
 }
 
@@ -50,10 +62,14 @@ nd_build_packet (uint8_t *packet, size_t packet_len,
                  const struct nd_command *cmd, const uint8_t *payload,
                  size_t payload_len)
 {
+  size_t header_len;
+
   if (packet == NULL || cmd == NULL)
     return 0;
 
-  if (packet_len < ND_COMMAND_HEADER_LEN + payload_len)
+  header_len = (cmd->version >= 3) ? ND_COMMAND_HEADER_LEN_V3
+                                   : ND_COMMAND_HEADER_LEN_V1;
+  if (packet_len < header_len + payload_len)
     return 0;
 
   nd_store_le16 (packet + 0, cmd->version);
@@ -63,11 +79,13 @@ nd_build_packet (uint8_t *packet, size_t packet_len,
   packet[7] = cmd->result;
   nd_store_le32 (packet + 8, cmd->start_sector);
   nd_store_le16 (packet + 12, cmd->sector_count);
+  if (header_len >= ND_COMMAND_HEADER_LEN_V3)
+    nd_store_le16 (packet + 14, cmd->header_extra);
 
   if (payload_len > 0 && payload != NULL)
-    memcpy (packet + ND_COMMAND_HEADER_LEN, payload, payload_len);
+    memcpy (packet + header_len, payload, payload_len);
 
-  return ND_COMMAND_HEADER_LEN + payload_len;
+  return header_len + payload_len;
 }
 
 int
@@ -82,7 +100,8 @@ nd_command_equal (const struct nd_command *left, const struct nd_command *right)
     && left->operation == right->operation
     && left->result == right->result
     && left->start_sector == right->start_sector
-    && left->sector_count == right->sector_count;
+    && left->sector_count == right->sector_count
+    && left->header_extra == right->header_extra;
 }
 
 static int
@@ -142,7 +161,7 @@ nd_parse_connect_info (const struct nd_command *cmd, const uint8_t *payload,
       return 0;
     }
 
-  if (cmd->version == 2)
+  if (cmd->version == 2 || cmd->version == 3)
     {
       if (payload_len < 52)
         {

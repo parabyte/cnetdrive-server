@@ -39,6 +39,7 @@ static const uint8_t nd_version_max_command[] =
 {
   0,
   ND_OP_WRITE_VERIFY,
+  ND_OP_LIST_CHECKPOINTS,
   ND_OP_LIST_CHECKPOINTS
 };
 
@@ -130,16 +131,27 @@ nd_send_response (int sockfd, const struct sockaddr_in *peer,
                   const struct nd_command *resp, const uint8_t *payload,
                   size_t payload_len)
 {
-  uint8_t packet[ND_MAX_PACKET];
+  uint8_t *packet;
   size_t packet_len;
+  int rc;
 
-  packet_len = nd_build_packet (packet, sizeof (packet), resp, payload,
-                                payload_len);
-  if (packet_len == 0)
+  packet = (uint8_t *) malloc (ND_COMMAND_HEADER_LEN_V3 + payload_len);
+  if (packet == NULL)
     return -1;
 
-  if (sendto (sockfd, packet, packet_len, 0, (const struct sockaddr *) peer,
-              sizeof (*peer)) < 0)
+  packet_len = nd_build_packet (packet, ND_COMMAND_HEADER_LEN_V3 + payload_len,
+                                resp, payload,
+                                payload_len);
+  if (packet_len == 0)
+    {
+      free (packet);
+      return -1;
+    }
+
+  rc = sendto (sockfd, packet, packet_len, 0, (const struct sockaddr *) peer,
+               sizeof (*peer));
+  free (packet);
+  if (rc < 0)
     return -1;
 
   return 0;
@@ -160,6 +172,30 @@ nd_close_session (struct nd_session *session, const char *reason)
 
   nd_backend_close (session->backend);
   memset (session, 0, sizeof (*session));
+}
+
+static uint16_t
+nd_crc16_xmodem (const uint8_t *data, size_t len)
+{
+  uint16_t crc;
+  size_t i;
+
+  crc = 0;
+  for (i = 0; i < len; i++)
+    {
+      unsigned int bit;
+
+      crc ^= (uint16_t) data[i] << 8;
+      for (bit = 0; bit < 8; bit++)
+        {
+          if ((crc & 0x8000u) != 0)
+            crc = (uint16_t) ((crc << 1) ^ 0x1021u);
+          else
+            crc <<= 1;
+        }
+    }
+
+  return crc;
 }
 
 /*
@@ -401,9 +437,10 @@ nd_handle_read (struct nd_server_state *state, struct nd_session *session,
 {
   struct nd_command resp;
   char errmsg[128];
-  uint8_t payload[ND_SECTOR_SIZE * ND_MAX_SECTORS_PER_OP];
+  uint8_t *payload;
   uint64_t end_byte;
   int retry;
+  size_t payload_len;
 
   memset (&resp, 0, sizeof (resp));
   resp.version = cmd->version;
@@ -428,11 +465,21 @@ nd_handle_read (struct nd_server_state *state, struct nd_session *session,
       return;
     }
 
+  payload_len = (size_t) cmd->sector_count * ND_SECTOR_SIZE;
+  payload = (uint8_t *) malloc (payload_len);
+  if (payload == NULL)
+    {
+      nd_send_response (state->sockfd, peer, &resp,
+                        (const uint8_t *) "Out of memory", 13);
+      return;
+    }
+
   end_byte = ((uint64_t) cmd->start_sector + cmd->sector_count) * ND_SECTOR_SIZE;
   if (end_byte > session->backend->size_bytes)
     {
       nd_send_response (state->sockfd, peer, &resp,
                         (const uint8_t *) "Attempted read past end of image", 32);
+      free (payload);
       return;
     }
 
@@ -441,14 +488,15 @@ nd_handle_read (struct nd_server_state *state, struct nd_session *session,
     {
       nd_send_response (state->sockfd, peer, &resp,
                         (const uint8_t *) errmsg, strlen (errmsg));
+      free (payload);
       return;
     }
 
   session->last_cmd = *cmd;
   session->last_active = time (NULL);
   resp.result = 0;
-  nd_send_response (state->sockfd, peer, &resp, payload,
-                    (size_t) cmd->sector_count * ND_SECTOR_SIZE);
+  nd_send_response (state->sockfd, peer, &resp, payload, payload_len);
+  free (payload);
   (void) retry;
 }
 
@@ -459,9 +507,10 @@ nd_handle_write (struct nd_server_state *state, struct nd_session *session,
 {
   struct nd_command resp;
   char errmsg[128];
-  uint8_t verify[ND_SECTOR_SIZE * ND_MAX_SECTORS_PER_OP];
+  uint8_t *verify;
   uint64_t end_byte;
   int retry;
+  size_t verify_len;
 
   memset (&resp, 0, sizeof (resp));
   resp.version = cmd->version;
@@ -515,27 +564,44 @@ nd_handle_write (struct nd_server_state *state, struct nd_session *session,
 
   if (cmd->operation == ND_OP_WRITE_VERIFY)
     {
+      uint8_t verify_crc[2];
+      uint16_t crc;
+
+      verify_len = (size_t) cmd->sector_count * ND_SECTOR_SIZE;
+      verify = (uint8_t *) malloc (verify_len);
+      if (verify == NULL)
+        {
+          nd_send_response (state->sockfd, peer, &resp,
+                            (const uint8_t *) "Out of memory", 13);
+          return;
+        }
+
       if (nd_backend_read (session->backend, cmd->start_sector, cmd->sector_count,
                            verify, errmsg, sizeof (errmsg)) != 0)
         {
           resp.result = 1;
           nd_send_response (state->sockfd, peer, &resp,
                             (const uint8_t *) errmsg, strlen (errmsg));
+          free (verify);
           return;
         }
 
       if (memcmp (verify, payload,
-                  (size_t) cmd->sector_count * ND_SECTOR_SIZE) != 0)
+                  verify_len) != 0)
         {
           resp.result = 1;
           nd_send_response (state->sockfd, peer, &resp,
                             (const uint8_t *) "Write verify error: miscompare",
                             30);
+          free (verify);
           return;
         }
 
-      nd_send_response (state->sockfd, peer, &resp, verify,
-                        (size_t) cmd->sector_count * ND_SECTOR_SIZE);
+      crc = nd_crc16_xmodem (verify, verify_len);
+      nd_store_le16 (verify_crc, crc);
+      nd_send_response (state->sockfd, peer, &resp, verify_crc,
+                        sizeof (verify_crc));
+      free (verify);
       return;
     }
 

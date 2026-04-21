@@ -20,9 +20,9 @@
 
 #define ND_PATH_MAX PATH_MAX
 #define ND_SECTOR_SIZE 512U
-#define ND_MAX_PACKET 1514U
+#define ND_MAX_PACKET 65535U
 #define ND_MAX_PAYLOAD 1400U
-#define ND_MAX_SECTORS_PER_OP 2U
+#define ND_MAX_SECTORS_PER_OP 128U
 #define ND_DEFAULT_MAX_SESSIONS 16U
 
 #define ND_ARRAY_LEN(a) (sizeof (a) / sizeof ((a)[0]))
